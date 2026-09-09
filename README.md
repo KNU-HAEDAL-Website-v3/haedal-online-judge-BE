@@ -52,6 +52,58 @@ curl -i localhost:8080/api/auth/me
 | API 명세 | springdoc-openapi 3.x → `/swagger-ui/index.html`, `/v3/api-docs` |
 | 테스트 | JUnit 5 + MockMvc + Testcontainers(PostgreSQL) - `src/test/java/kr/haedal/ondal/support/` 참고 |
 
+## 운영 배포 (해달 서버)
+
+- 위치: 공용 서버 `/opt/haedal/3-haedal-ondal/ondal-BE` (git clone, `main` 추적) - JDK 불필요, 이미지 안에서 빌드
+- 주소: API `https://ondal-api.haedal-sos-man-in-the-mirror.com` · FE `https://ondal.haedal-sos-man-in-the-mirror.com`
+- 트래픽 경로: Cloudflare Tunnel(`0-haedal-infra/cloudflared`) → nginx(`0-haedal-infra/nginx`, 컨테이너 `nginx`, :80) → 외부 도커 네트워크 `ngx_to_srv` → `ondal-be:8080`
+  - nginx 설정: `/opt/haedal/0-haedal-infra/nginx/conf.d/ondal-api.conf` - `client_max_body_size 15m`(zip 10MB + multipart 여유), `X-Forwarded-Proto https` 고정(nginx는 :80으로 받으므로 `$scheme`을 쓰면 http가 됨)
+  - TLS 종단·HTTPS 강제(Always Use HTTPS)는 Cloudflare 대시보드 - 앱은 HTTP만 받고 `forward-headers-strategy: framework`로 https 를 인지
+- DB: 같은 compose의 `db` 컨테이너(PostgreSQL 16), 볼륨 `ondal-db-data` - 호스트 포트 미노출
+- 제출 파일: 볼륨 `ondal-uploads` → 컨테이너 `/app/uploads`
+- 인프라 소유: `0-haedal-infra`는 인프라 담당 관리 - nginx 설정 변경은 협의 후, 서버 안내는 `/opt/haedal/SERVER-GUIDE.md`
+
+### 절차
+
+| 단계 | 명령 (서버, 레포 루트) |
+|---|---|
+| 최초 1회 | `cp .env.example .env` 후 `DB_PASSWORD` 채우기 (`openssl rand -base64 24`) |
+| 배포·재배포 | `git pull && sudo docker compose up -d --build` (.env의 `COMPOSE_FILE`이 prod 파일을 지정) |
+| .env 변경 반영 | `sudo docker compose up -d` (컨테이너 재생성 - `restart`만으로는 미반영) |
+| 로그 | `sudo docker compose logs -f ondal-be` |
+| 확인 | `curl https://ondal-api.haedal-sos-man-in-the-mirror.com/api/health` → `{"status":"UP"}` |
+| nginx 설정 변경 후 | `sudo docker exec nginx nginx -t && sudo docker exec nginx nginx -s reload` |
+
+### 최초 관리자 (부트스트랩)
+
+- 운영에는 시더가 돌지 않음 - 관리자 1명을 수동 SQL로 지정 (docs 레포 `permissions.md` 4절). 이후 분반 생성·운영진 지정은 이 관리자가 화면에서 진행
+
+1. 관리자가 될 계정으로 FE에서 1회 로그인 → `users` 행 생성(MEMBER)
+2. 승격 (loginId 는 홈페이지 계정 ID):
+
+```bash
+sudo docker compose exec db psql -U ondal -d ondal \
+  -c "UPDATE users SET global_role = 'ADMIN' WHERE login_id = '<loginId>';"
+```
+
+3. 로그아웃 후 재로그인 → `/api/auth/me` 응답의 `globalRole`이 `ADMIN`
+
+### 환경 변수 (.env)
+
+| 키 | 필수 | 기본값(prod 프로필) | 설명 |
+|---|---|---|---|
+| `COMPOSE_FILE` | 권장 | - | `docker-compose.prod.yml` - `-f` 생략용 |
+| `DB_PASSWORD` | 필수 | - | PostgreSQL 비밀번호 - db·app 양쪽에 주입 |
+| `CORS_ORIGINS` | 선택 | FE 커스텀 도메인 | 쉼표 구분, 공백 금지 |
+| `COOKIE_SAMESITE` | 선택 | `lax` | FE·API가 같은 등록 도메인이라 lax 가능. cross-site FE(*.pages.dev)일 때만 `none` |
+| `COOKIE_SECURE` | 선택 | `true` | HTTPS 전제. http 직접 테스트 때만 `false` |
+
+### 주의
+
+- **인증은 아직 스텁** - loginId만 알면 누구로든 로그인됨. 실사용 전 홈페이지(Keycloak) 연동이 필수 - 연동 전까지 운영 URL을 외부에 공유하지 않는다
+- `docker compose down -v`는 DB·업로드 볼륨을 모두 지움 - DB만 초기화하려면 `sudo docker compose down && sudo docker volume rm <프로젝트>_ondal-db-data` (이름은 `sudo docker volume ls`로 확인)
+- 세션은 인메모리 - 재배포마다 전원 로그아웃 (docs 결정 5에서 감수)
+
 ## 인증 (P1)
 
 - 현재: **스텁 로그인** - loginId만 전송하면 검증 없이 통과

@@ -61,15 +61,20 @@ spring:
 
 ondal:
   cors:
-    allowed-origins: ${CORS_ORIGINS:https://haedal-online-judge-fe.pages.dev}
+    # FE 커스텀 도메인이 기본값. pages.dev 미리보기 오리진은 세션 쿠키(lax)가 실리지 않아 로그인 불가 - 필요 시 .env에서 쉼표로 추가(공백 금지)
+    allowed-origins: ${CORS_ORIGINS:https://ondal.haedal-sos-man-in-the-mirror.com}
 
 server:
+  # nginx(0-haedal-infra)가 보내는 X-Forwarded-Proto=https 를 신뢰 - springdoc servers URL·리다이렉트가 https 로 나간다
+  # 프록시 뒤에서만 켠다 (로컬에서 켜면 클라이언트가 헤더를 위조할 수 있다)
+  forward-headers-strategy: framework
   servlet:
     session:
       cookie:
-        # FE(pages.dev)와 API가 서로 다른 사이트라 쿠키를 실으려면 none+secure 필요 - secure는 HTTPS 전제
-        # HTTPS 프록시를 붙이기 전 http://IP:8080 직접 테스트 동안만 .env에서 lax/false로 임시 하향
-        same-site: ${COOKIE_SAMESITE:none}
+        # FE(ondal.도메인)와 API(ondal-api.도메인)는 같은 등록 도메인 = same-site → lax 로 쿠키가 실리고 CSRF 1차 방어도 유지
+        # FE를 다른 사이트(*.pages.dev 등)에서 띄울 때만 .env에서 COOKIE_SAMESITE=none (secure 필수)
+        # secure=true 는 HTTPS 전제 - http://IP:8080 직접 테스트 동안만 .env에서 false 로 임시 하향
+        same-site: ${COOKIE_SAMESITE:lax}
         secure: ${COOKIE_SECURE:true}
 
 logging:
