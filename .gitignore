@@ -39,5 +39,5 @@ out/
 ### Claude Code ###
 .claude/
 
-### 개인 공부 노트 (비공개) ###
-study-notes.md
+### 배포 ###
+.env

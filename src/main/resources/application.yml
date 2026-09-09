@@ -43,3 +43,35 @@ spring:
     url: jdbc:postgresql://localhost:5432/ondal
     username: ondal
     password: ondal-local-password   # 로컬 도커 전용 값 - 진짜 비밀은 application-local.yml(.gitignore됨)에
+
+---
+# ===== prod: 해달 서버 - docker-compose.prod.yml + .env로 실행 (Dockerfile 이미지) =====
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://db:5432/ondal   # db = compose 서비스명 (컨테이너 내부 네트워크)
+    username: ondal
+    password: ${DB_PASSWORD}               # 서버의 .env에서 주입
+  jpa:
+    properties:
+      hibernate:
+        format_sql: false
+
+ondal:
+  cors:
+    allowed-origins: ${CORS_ORIGINS:https://haedal-online-judge-fe.pages.dev}
+
+server:
+  servlet:
+    session:
+      cookie:
+        # FE(pages.dev)와 API가 서로 다른 사이트라 쿠키를 실으려면 none+secure 필요 - secure는 HTTPS 전제
+        # HTTPS 프록시를 붙이기 전 http://IP:8080 직접 테스트 동안만 .env에서 lax/false로 임시 하향
+        same-site: ${COOKIE_SAMESITE:none}
+        secure: ${COOKIE_SECURE:true}
+
+logging:
+  level:
+    org.hibernate.SQL: warn   # 공통 프로필의 학습용 debug를 운영에서 끔
