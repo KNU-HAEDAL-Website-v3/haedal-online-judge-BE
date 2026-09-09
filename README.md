@@ -40,6 +40,7 @@ curl -i localhost:8080/api/auth/me
 - 테스트: `./gradlew test` - Testcontainers로 PostgreSQL 구동, Docker 실행 필수
 - 종료: `Ctrl+C` (서버), `docker compose down` (DB - 데이터는 볼륨에 유지됨)
 - 트러블슈팅: 최다 사례는 5432 포트 충돌(로컬에 다른 PostgreSQL이 떠 있는 경우) → `docker compose ps`, `lsof -i :5432`로 확인
+- 기동 실패 `Found non-empty schema(s) "public" but no schema history table` 또는 `Schema-validation: missing table/column` → Flyway 이전 방식(ddl-auto update)으로 만든 개발 DB → `docker compose down -v && docker compose up -d` 후 재기동 (샘플 데이터는 시더가 재생성)
 
 ## 기술 스택
 
@@ -49,6 +50,7 @@ curl -i localhost:8080/api/auth/me
 | Framework | Spring Boot 4.1 (Spring Framework 7, Jackson 3) |
 | Build | Gradle |
 | DB | PostgreSQL 16 (로컬: Docker) |
+| DB 마이그레이션 | Flyway - `src/main/resources/db/migration/V{n}__{설명}.sql`, Hibernate `ddl-auto: validate` (DB를 고치지 않고 대조만) |
 | API 명세 | springdoc-openapi 3.x → `/swagger-ui/index.html`, `/v3/api-docs` |
 | 테스트 | JUnit 5 + MockMvc + Testcontainers(PostgreSQL) - `src/test/java/kr/haedal/ondal/support/` 참고 |
 
@@ -73,6 +75,7 @@ curl -i localhost:8080/api/auth/me
 | 로그 | `sudo docker compose logs -f ondal-be` |
 | 확인 | `curl https://ondal-api.haedal-sos-man-in-the-mirror.com/api/health` → `{"status":"UP"}` |
 | nginx 설정 변경 후 | `sudo docker exec nginx nginx -t && sudo docker exec nginx nginx -s reload` |
+| Flyway 전환 배포 (1회) | 운영 DB가 Flyway 이전(ddl-auto update)에 생성된 경우: 데이터 폐기 가능하면 `sudo docker compose down && sudo docker volume rm <프로젝트>_ondal-db-data` 후 배포 (권장 - 실사용 전). 보존해야 하면 .env에 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true` 를 넣고 1회 배포 후 제거 - 단 제약 이름·CHECK가 V1과 달라 후속 마이그레이션 전에 정리 필요 |
 
 ### 최초 관리자 (부트스트랩)
 
@@ -118,3 +121,4 @@ sudo docker compose exec db psql -U ondal -d ondal \
 - 도메인 패키지 내부: 계층별 하위 패키지로 분리 - `<도메인>/controller`, `service`, `repository`, `entity`, `dto` (예: `cohort/`, `enrollment/` 참고)
 - `/api/**` 의 모든 핸들러: `@LoginOnly` / `@AdminOnly` / `@CohortRole` 중 하나 필수 - 누락 시 부팅 실패 (`AuthorizationMappingValidator`)
 - 분반 스코프 리소스: 항상 `/api/cohorts/{cohortId}/...` 하위에 배치, 하위 id 는 서비스에서 `findByIdAndCohortId` 로 조회
+- 스키마 변경: 엔티티 수정 + `V{n}__{설명}.sql` 추가를 같은 PR에서 - 적용된 마이그레이션 파일은 수정 금지, 제약 이름은 docs 레포 `db/schema.md` 를 따른다
