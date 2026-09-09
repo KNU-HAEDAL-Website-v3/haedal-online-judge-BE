@@ -7,6 +7,8 @@ import kr.haedal.ondal.cohort.repository.CohortRepository;
 import kr.haedal.ondal.enrollment.entity.Enrollment;
 import kr.haedal.ondal.enrollment.repository.EnrollmentRepository;
 import kr.haedal.ondal.enrollment.entity.EnrollmentRole;
+import kr.haedal.ondal.qna.entity.Question;
+import kr.haedal.ondal.qna.repository.QuestionRepository;
 import kr.haedal.ondal.submission.entity.Submission;
 import kr.haedal.ondal.submission.entity.SubmissionType;
 import kr.haedal.ondal.submission.repository.SubmissionRepository;
@@ -34,6 +36,7 @@ import java.util.List;
  *   문구는 자체 문제 서술 - Ondal은 자체 채점 OJ라 외부 사이트 풀이 지시를 쓰지 않는다 (docs/submission/design.md 결정 16)
  * 만드는 제출: 1차시 과제에 상태 4종 재현 - student1 제출(CODE) / student2 제출(추가)(CODE→LINK) / student3 지각(LINK), 2차시는 student1만 제출(나머지 미제출)
  *   (FILE 제출은 시딩하지 않는다 - 디스크 파일이 필요해 시더 부적합. CODE·LINK 제출만)
+ * 만드는 질문: Q&A 게시판 2건 - student1·student2가 진행 중 분반에 작성 (목록 최신순·작성자 직책·수정/삭제 버튼 분기 확인용)
  */
 @Component
 @Profile("local")
@@ -47,19 +50,22 @@ public class LocalDataSeeder implements CommandLineRunner {
     private final EnrollmentRepository enrollmentRepository;
     private final AssignmentRepository assignmentRepository;
     private final SubmissionRepository submissionRepository;
+    private final QuestionRepository questionRepository;
 
     public LocalDataSeeder(UserRepository userRepository,
                            UserService userService,
                            CohortRepository cohortRepository,
                            EnrollmentRepository enrollmentRepository,
                            AssignmentRepository assignmentRepository,
-                           SubmissionRepository submissionRepository) {
+                           SubmissionRepository submissionRepository,
+                           QuestionRepository questionRepository) {
         this.userRepository = userRepository;
         this.userService = userService;
         this.cohortRepository = cohortRepository;
         this.enrollmentRepository = enrollmentRepository;
         this.assignmentRepository = assignmentRepository;
         this.submissionRepository = submissionRepository;
+        this.questionRepository = questionRepository;
     }
 
     @Override
@@ -95,6 +101,7 @@ public class LocalDataSeeder implements CommandLineRunner {
                 now.plus(14, ChronoUnit.DAYS)));
 
         seedSubmissions(session1, session2, now);
+        seedQuestions(current);
 
         log.info("[seed] 샘플 분반 생성: '{}'(ACTIVE, 과제 3개 + 제출 시나리오 4종), '{}'(ARCHIVED). 계정: operator1, student1~3",
                 current.getName(), past.getName());
@@ -123,6 +130,16 @@ public class LocalDataSeeder implements CommandLineRunner {
         // 2차시(마감 전): student1만 제출 → 나머지는 미제출(NOT_SUBMITTED) 확인용
         submissionRepository.save(Submission.createAt(session2, student1, SubmissionType.CODE, sampleCode, "C",
                 null, now.minus(1, ChronoUnit.HOURS)));
+    }
+
+    /** Q&A 게시판 샘플 - 수강생 질문 2건. 답변(댓글)은 이 슬라이스 범위 밖이라 시딩하지 않는다 */
+    private void seedQuestions(Cohort current) {
+        User student1 = userService.findOrCreateMember("student1");
+        User student2 = userService.findOrCreateMember("student2");
+        questionRepository.save(Question.create(current, student1, "1차시 과제 입력 형식 질문",
+                "A와 B가 한 줄에 공백으로 들어온다고 했는데, 줄바꿈으로 나뉘어 들어오는 경우도 처리해야 하나요?"));
+        questionRepository.save(Question.create(current, student2, "제출 후 코드를 수정하면 어떻게 되나요?",
+                "이미 제출한 과제의 코드를 고쳐 다시 제출하면 이전 제출은 사라지나요, 아니면 이력이 남나요?"));
     }
 
     private void enroll(Cohort cohort, String loginId, EnrollmentRole role) {
