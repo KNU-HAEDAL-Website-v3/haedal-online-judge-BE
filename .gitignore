@@ -38,3 +38,6 @@ out/
 
 ### Claude Code ###
 .claude/
+
+### 배포 ###
+.env
