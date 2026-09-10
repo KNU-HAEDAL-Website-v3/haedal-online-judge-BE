@@ -24,6 +24,9 @@ dependencies {
 	// API 문서(OpenAPI/Swagger UI). Boot BOM 관리 대상이 아니라 버전을 직접 적는다 - 3.x = Boot 4.x 라인.
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	// 스키마 마이그레이션 - 기동 시 db/migration 의 V{n}__*.sql 적용. Flyway 10+ 는 DB별 모듈이 따로 필요하다. 버전은 Boot BOM 관리
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'

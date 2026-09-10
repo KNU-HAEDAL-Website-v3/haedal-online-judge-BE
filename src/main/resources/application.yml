@@ -4,11 +4,16 @@ spring:
     active: local     # 아무 지정 없이 실행하면 local. 테스트는 @ActiveProfiles("test")로 덮어쓴다
   jpa:
     hibernate:
-      ddl-auto: update   # P1 개발용. 첫 운영 배포 전 Flyway 마이그레이션으로 전환한다(알려진 부채)
+      ddl-auto: validate # 스키마의 원천은 Flyway(db/migration). 엔티티와 DB가 어긋나면 기동 실패로 드러낼 뿐, DB를 고치지 않는다
     open-in-view: false  # 지연로딩은 서비스 계층 안에서 끝낸다 - 켜두면 N+1을 눈치 못 챈 채 굴러감
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    # 기동 시 classpath:db/migration 의 V{n}__{설명}.sql 을 순서대로 적용 (Flyway → JPA 순서는 Boot가 보장). 적용된 파일은 수정 금지 - 체크섬 검증
+    # Flyway 이전(ddl-auto update)에 만든 DB는 리셋이 원칙. 데이터를 보존해야 할 때만 환경변수 SPRING_FLYWAY_BASELINE_ON_MIGRATE=true 로 1회 기동 -
+    # 그 DB를 V1(초기 스키마)이 적용된 상태로 간주한다 (baseline-version). README "실행법"·"운영 배포" 참고
+    baseline-version: 1
   jackson:
     time-zone: UTC       # 응답의 시각은 UTC(ISO-8601) - KST 변환은 프론트 책임 (docs 결정)
   servlet:
