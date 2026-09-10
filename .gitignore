@@ -41,3 +41,6 @@ out/
 
 ### 배포 ###
 .env
+
+# 로컬 curl 세션 쿠키 파일 (README 동작 확인 예시) - 세션 ID가 담기므로 커밋 금지
+cookie.txt
